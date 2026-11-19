@@ -329,9 +329,20 @@ class MeshBatchStudio(tk.Tk):
         return None
 
     def auto_detect_node_ids(self, workflow_dict):
-        """Scans the API JSON to locate the exact node IDs for LoadImage and Save3D."""
+        """Scans the API JSON to locate the exact node IDs for LoadImage and 3D export nodes."""
         load_id = None
         save_id = None
+
+        export_targets = [
+            "Save3DAdvanced",
+            "Save3D",
+            "SaveGLB",
+            "SaveGLTF",
+            "Hy3DExportMesh",
+            "ExportMesh",
+            "SaveMesh",
+            "MeshToFile3D",
+        ]
 
         for node_id, data in workflow_dict.items():
             if not isinstance(data, dict):
@@ -340,8 +351,8 @@ class MeshBatchStudio(tk.Tk):
 
             if class_type == "LoadImage":
                 load_id = str(node_id)
-            elif any(target in class_type for target in ["Save3DAdvanced", "Save3D", "SaveGLTF", "MeshToFile3D"]):
-                if "Save3DAdvanced" in class_type or save_id is None:
+            elif any(target in class_type for target in export_targets):
+                if "Save3DAdvanced" in class_type or "SaveGLB" in class_type or save_id is None:
                     save_id = str(node_id)
 
         return load_id, save_id
@@ -390,12 +401,12 @@ class MeshBatchStudio(tk.Tk):
         load_id, save_id = self.auto_detect_node_ids(workflow)
 
         if not load_id or not save_id:
-            self.log(f"[!] Node Detection Failed -> LoadImage: '{load_id}', Save3D: '{save_id}'")
-            self.log("[!] Make sure the JSON is saved in API format with standard LoadImage and Save3DAdvanced nodes.")
+            self.log(f"[!] Node Detection Failed -> LoadImage: '{load_id}', Export3D: '{save_id}'")
+            self.log("[!] Make sure the JSON is saved in API format with standard LoadImage and 3D export nodes.")
             self.reset_run_state()
             return
 
-        self.log(f"[✓] Auto-detected workflow nodes: LoadImage [Node {load_id}] | Save3D [Node {save_id}]")
+        self.log(f"[✓] Auto-detected workflow nodes: LoadImage [Node {load_id}] | Export3D [Node {save_id}]")
 
         # 3. Acquire Live ComfyUI Server
         server_url = self.detect_active_comfy_url()
@@ -459,8 +470,8 @@ class MeshBatchStudio(tk.Tk):
                 shutil.copyfile(src_img, staged_path)
 
                 # Inject parameters via detected node IDs
-                workflow[load_id]["inputs"]["image"] = staged_name
-                workflow[save_id]["inputs"]["filename_prefix"] = f"batch_{base_name}"
+                workflow[load_id].setdefault("inputs", {})["image"] = staged_name
+                workflow[save_id].setdefault("inputs", {})["filename_prefix"] = f"batch_{base_name}"
                 start_time = time.time()
 
                 # Submit prompt
